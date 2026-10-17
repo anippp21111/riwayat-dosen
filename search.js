@@ -1,4 +1,26 @@
-const { request, recordsFrom, pick, isPnl } = require('../lib/pddikti');
+const { request, recordsFrom, pick, isPnl, normalize } = require('../lib/pddikti');
+
+async function pnlRoster(query) {
+  const response = await fetch('https://data.pnl.ac.id/dosen/list', {
+    headers: { Accept: 'text/html,application/xhtml+xml', 'User-Agent': 'Mozilla/5.0' },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error(`Portal PNL gagal diakses (HTTP ${response.status}).`);
+  const html = await response.text();
+  const decode = (value) => value.replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&#x([\da-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  const needle = normalize(query);
+  const data = [];
+  for (const [, row] of html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const cells = [...row.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)].map((match) => decode(match[1]));
+    if (cells.length < 11 || !/^\d+$/.test(cells[0])) continue;
+    if (!normalize(cells[1]).includes(needle) && !normalize(cells[2]).includes(needle) && !normalize(cells[3]).includes(needle)) continue;
+    data.push({ id: '', nama: cells[1], nidn: cells[2], nuptk: cells[3], nama_prodi: cells[8], sumber: 'daftar PNL' });
+  }
+  return data;
+}
 
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
@@ -20,8 +42,13 @@ module.exports = async function handler(req, res) {
         nuptk: pick(record, ['nuptk']),
         nama_prodi: pick(record, ['nama_prodi', 'prodi']),
       })).filter((record) => record.id && record.nama);
-      return res.status(200).json({ data });
+      if (data.length) return res.status(200).json({ data });
     } catch (error) { lastError = error; }
   }
-  return res.status(502).json({ error: lastError?.message || 'Pencarian dosen gagal.' });
+  try {
+    const data = await pnlRoster(keyword);
+    return res.status(200).json({ data, source: 'roster' });
+  } catch (error) {
+    return res.status(lastError ? 502 : 200).json({ error: error.message || lastError?.message || 'Pencarian dosen gagal.', data: [] });
+  }
 };

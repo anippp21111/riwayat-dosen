@@ -80,6 +80,10 @@
   }
 
   async function openDetail(lecturer) {
+    if (!lecturer.id) {
+      showMessage($('#home-message'), 'Profil ditemukan pada daftar PNL, tetapi ID riwayat PDDikti untuk dosen ini belum tersedia. Coba cari menggunakan NIDN.', true);
+      return;
+    }
     const url = new URL(location.href);
     url.search = `?id=${encodeURIComponent(lecturer.id)}`;
     history.pushState({ lecturer }, '', url);
@@ -115,12 +119,21 @@
     showMessage($('#home-message'), 'Menghubungi PDDikti…');
     document.body.className = 'is-results';
     try {
-      const result = await api(`/api/search?q=${encodeURIComponent(query)}`);
+      let result;
+      try { result = await api(`/api/search?q=${encodeURIComponent(query)}`); }
+      catch (searchError) {
+        const roster = await api('/api/roster');
+        const needle = normalize(query);
+        result = { data: (roster.data || []).filter((person) => normalize(person.nama).includes(needle) || normalize(person.nidn).includes(needle) || normalize(person.nuptk).includes(needle))
+          .map((person) => ({ id: '', nama: person.nama, nidn: person.nidn, nuptk: person.nuptk, nama_prodi: person.prodi, sumber: 'daftar PNL' })) };
+        if (!result.data.length) throw searchError;
+      }
       const lecturers = result.data || [];
       showMessage($('#home-message'), '');
       if (!lecturers.length) {
         showMessage($('#home-message'), `Tidak ditemukan dosen PNL dengan nama “${query}”.`);
       } else {
+        if (lecturers.some((lecturer) => !lecturer.id)) showMessage($('#home-message'), 'Hasil berasal dari daftar resmi dosen PNL. Riwayat pendidikan terperinci tersedia jika dosen ditemukan juga di PDDikti.');
         $('#results').innerHTML = `<div class="count">${lecturers.length} dosen ditemukan</div><ul class="list">${lecturers.map((lecturer, index) => `<li><a href="?id=${encodeURIComponent(lecturer.id)}" data-index="${index}"><span><div class="nama">${escapeHtml(lecturer.nama)}</div><div class="info">${escapeHtml([lecturer.nama_prodi, lecturer.nidn ? `NIDN ${lecturer.nidn}` : ''].filter(Boolean).join(' · '))}</div></span><span class="arrow">→</span></a></li>`).join('')}</ul>`;
         $('#results').querySelectorAll('a[data-index]').forEach((link) => link.addEventListener('click', (click) => { click.preventDefault(); openDetail(lecturers[Number(link.dataset.index)]); }));
         const url = new URL(location.href); url.search = `?q=${encodeURIComponent(query)}`; history.pushState({ query }, '', url);
@@ -193,7 +206,7 @@
       });
 
       const headers = ['No', 'Nama Dosen', 'NIDN', 'NUPTK', 'S1 - Kampus', 'S1 - Tahun Lulus', 'S2 - Kampus', 'S2 - Tahun Lulus', 'S3 - Kampus', 'S3 - Tahun Lulus', 'Program Studi', 'Jurusan', 'Status Aktif', 'Status Riwayat PDDikti'];
-      const lines = [headers.map(csvCell).join(';')];
+      const rows = [headers];
       for (const lecturer of lecturers) {
         const key = lecturer.nidn || normalize(lecturer.nama);
         const history = cache[key] || { data: [], status: 'Riwayat tidak tersedia.' };
@@ -211,13 +224,19 @@
           join(levels.S1.campus), join(levels.S1.year), join(levels.S2.campus), join(levels.S2.year), join(levels.S3.campus), join(levels.S3.year),
           lecturer.prodi, lecturer.jurusan, lecturer.status,
           history.data?.length ? 'Riwayat tersedia' : history.status];
-        lines.push(row.map(csvCell).join(';'));
+        rows.push(row);
       }
-      const blob = new Blob([`\uFEFF${lines.join('\r\n')}`], { type: 'text/csv;charset=utf-8' });
+      const excelCell = (value) => {
+        let text = String(value ?? '');
+        if (/^[=+@\-\t\r]/.test(text)) text = `'${text}`;
+        return `<td>${escapeHtml(text)}</td>`;
+      };
+      const table = `<html><head><meta charset="utf-8"></head><body><table>${rows.map((row) => `<tr>${row.map(excelCell).join('')}</tr>`).join('')}</table></body></html>`;
+      const blob = new Blob([`\uFEFF${table}`], { type: 'application/vnd.ms-excel;charset=utf-8' });
       const href = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = href;
-      link.download = `rekap-pendidikan-dosen-pnl-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.download = `rekap-pendidikan-dosen-pnl-${new Date().toISOString().slice(0, 10)}.xls`;
       document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(href);
       showMessage($('#home-message'), `File berisi ${lecturers.length} dosen. Riwayat pendidikan yang gagal ditemukan diberi status di kolom terakhir.`);
     } catch (error) { showMessage($('#home-message'), error.message, true); }
