@@ -13,6 +13,6 @@ Pastikan fitur Node.js Laragon terpasang. Klik dua kali file `Jalankan-Lokal.bat
 3. Biarkan Vercel mendeteksi proyek statis dan fungsi Node.js di folder `api/`.
 4. Deploy.
 
-`index.html` menjadi halaman utama. File di folder `api/` menjadi endpoint serverless di Vercel dan dipakai juga oleh server lokal Node.js. Endpoint riwayat dosen mengakses PDDikti; hasil ekspor disimpan di cache browser untuk mempercepat unduhan berikutnya.
+`index.html` menjadi halaman utama. File di folder `api/` menjadi endpoint serverless di Vercel. Server lokal hanya berada di `local/server.js` agar tidak ikut terdeteksi Vercel sebagai fungsi. Endpoint riwayat dosen mengakses PDDikti; hasil ekspor disimpan di cache browser untuk mempercepat unduhan berikutnya.
 
 Unduhan dibuat dalam CSV UTF-8 yang bisa dibuka dengan Microsoft Excel. Akses PDDikti dapat dibatasi oleh layanan upstream; kolom status pada hasil ekspor menunjukkan dosen yang riwayatnya tidak berhasil dimuat.
