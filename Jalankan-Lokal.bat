@@ -8,6 +8,6 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-start "Riwayat Dosen PNL - server" /min "%NODE_EXE%" "%CD%\server.js"
+start "Riwayat Dosen PNL - server" /min "%NODE_EXE%" "%CD%\local\server.js"
 timeout /t 2 /nobreak >nul
 start "" http://localhost:3000

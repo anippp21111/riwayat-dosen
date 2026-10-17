@@ -2,11 +2,11 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const root = __dirname;
+const root = path.resolve(__dirname, '..');
 const handlers = {
-  '/api/search': require('./api/search'),
-  '/api/roster': require('./api/roster'),
-  '/api/detail': require('./api/detail'),
+  '/api/search': require('../api/search'),
+  '/api/roster': require('../api/roster'),
+  '/api/detail': require('../api/detail'),
 };
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
 
